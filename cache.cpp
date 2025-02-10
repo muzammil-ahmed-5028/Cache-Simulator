@@ -45,13 +45,17 @@ std::bitset<R> extractBits(std::bitset<N> const& source,int start, int end ){
 tag_t getTag(address_t address){
     return extractBits<TAG_SIZE_BITS,ADDRESS_LENGTH>(address,TOTAL_OFFSET,ADDRESS_LENGTH-1);
 }
+// helper function for getting the word select bits from a address
+std::bitset<WORD_OFFSET_BITS> getWordSelect(address_t address){
+    return extractBits<WORD_OFFSET_BITS,ADDRESS_LENGTH>(address,WORD_OFFSET_BITS + BYTE_OFFSET_BITS -1,BYTE_OFFSET_BITS )
+}
 
 template <size_t MAIN_MEMORY_SIZE>
 class MM{
     private:
         std::array<data_block,MAIN_MEMORY_SIZE/WORDS_IN_BLOCK> data; 
     public:
-        void readBlock(tag_t readTag){
+        data_block_t readBlock(tag_t readTag){
             return data[readTag.to_ulong()];
         }
         void writeBlock(data_block_t writeData, tag_t writeTag ){
@@ -106,7 +110,7 @@ class Cache{
         std::bitset<TOTAL_CACHE_LINES> dirty;
         std::queue<tag_t> fifoQueue;
         char cache_pointer = 0;
-        
+        LRU<TOTAL_CACHE_LINES> lruTracker;
     public:
         
         void printCacheLine(int i){
@@ -131,6 +135,18 @@ class Cache{
                 if( addressTag == tags[i]){
                     std::cout<<"The value is in the cache"<<'\n'; 
                     returnData = data[i][wordSelect.to_ulong()];
+                    lruTracker.rearrange(addressTag);
+                    return i;
+                }
+            }
+            std::cout<<"the value is not in the cache"<<'\n';
+            return -1;
+        }
+
+        bool checkValueInCache(tag_t addressTag){
+            for (int i=0;i<TOTAL_CACHE_LINES;i++){
+                if( addressTag == tags[i]){
+                    std::cout<<"The value is in the cache"<<'\n'; 
                     return i;
                 }
             }
@@ -151,6 +167,27 @@ class Cache{
             while(!fifoQueue.empty()){
                 fifoQueue.pop();
             }
+       }
+
+       void writeValue(address_t address, data32_t inputData,t){
+        /*
+         new input data address, input data;
+         add the tag to top of lru
+         if lru full?
+            pop from end of lru for replacemnt tag
+            place the thing in replacement tag in corresponding cache line 
+         
+         */
+        tag_t newDataTag = getTag(address);
+        tag_t evictedTag;
+        // check if there is an evicted tag
+        if(lruTracker.add(newDataTag,evictedTag)){
+            int i = checkValueInCache(evictedTag);
+            if(dirty[i]){
+                
+            }
+        }
+        lruTracker.
        }
        
 };
@@ -174,7 +211,8 @@ class MemorySystem{
             else{
                 tag_t blockaddress = getTag(addr);
                 data_block_t block = mainMemory.readBlock(blockaddress);
-                
+                cache.writeValue(addr,block);
+                return block[getWordSelect(addr).to_ulong];
             }
         }
 };
